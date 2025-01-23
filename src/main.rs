@@ -62,7 +62,7 @@ impl Matrix {
 }
 
 
-fn recursively_visit_all_paths_from_trailhead(matrix: &Matrix, trailhead: (usize, usize), trail_score_for_trailhead: &mut u64) {
+fn recursively_visit_all_paths_from_trailhead_part1(matrix: &Matrix, trailhead: (usize, usize), trail_score_for_trailhead: &mut u64) {
     let mut stack = Vec::new();
     let mut peak_9_visited: HashSet<(usize,usize)>  = HashSet::new();
     stack.push(trailhead);
@@ -91,10 +91,35 @@ fn recursively_visit_all_paths_from_trailhead(matrix: &Matrix, trailhead: (usize
     }
 }
 
+fn recursively_visit_all_paths_from_trailhead_part2(matrix: &Matrix, trailhead: (usize, usize), trail_rating_for_trailhead: &mut u64) {
+    let mut stack = Vec::new();
+    stack.push(trailhead);
+    while let Some((x, y)) = stack.pop() {
+        let current_value = matrix.data[y][x];
+        // Visit all neighbors.
+        for (dx, dy) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+            let new_x = x as i32 + dx;
+            let new_y = y as i32 + dy;
+            if matrix.check_bounds(new_x as usize, new_y as usize) {
+                let new_value = matrix.data[new_y as usize][new_x as usize];
+                if new_value == current_value + 1 {
+                    if new_value == 9 {
+                        *trail_rating_for_trailhead += 1;
+                    } else {
+                        // We found a possible trail to continue to investigate.
+                        stack.push((new_x as usize, new_y as usize));
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 fn main() {
     println!("Hello, aoc_2024_10!");
     match Matrix::from_file("./src/input.txt") {
-        Ok(mut matrix) => {
+        Ok(matrix) => {
             matrix.print();
             let trail_heads = matrix.trailhead_positions();
             //for (ch, pos) in &positions {
@@ -102,17 +127,25 @@ fn main() {
             //}
 
             let mut total_trail_score: u64 = 0;
+            let mut total_trail_rating: u64 = 0;
             for trail_head in &trail_heads {
                 let mut trail_score_for_trailhead = 0;
 
                 // Examine possible trails from each trailhead.
-                recursively_visit_all_paths_from_trailhead(&matrix, *trail_head, &mut trail_score_for_trailhead );
-                println!("Trailhead at position: {:?} trail_score_for_trailhead {}", trail_head, trail_score_for_trailhead);
-
+                recursively_visit_all_paths_from_trailhead_part1(&matrix, *trail_head, &mut trail_score_for_trailhead );
+                println!("Trailhead at position: {:?} part 1 trail_score_for_trailhead {}", trail_head, trail_score_for_trailhead);
                 total_trail_score += trail_score_for_trailhead;
+
+                let mut trail_rating_for_trailhead = 0;
+
+                recursively_visit_all_paths_from_trailhead_part2(&matrix, *trail_head, &mut trail_rating_for_trailhead );
+                println!("Trailhead at position: {:?} part 2 trail_raiting_for_trailhead {}", trail_head, trail_rating_for_trailhead);
+                total_trail_rating += trail_rating_for_trailhead;
+
             }
 
-            println!("total_trail_score positions: {}", total_trail_score);
+            println!("total_trail_score: {}", total_trail_score);
+            println!("total_trail_rating: {}", total_trail_rating);
 
         },
         Err(e) => eprintln!("Error reading input file: {}", e),
