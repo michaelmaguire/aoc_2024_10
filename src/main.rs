@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -63,6 +64,7 @@ impl Matrix {
 
 fn recursively_visit_all_paths_from_trailhead(matrix: &Matrix, trailhead: (usize, usize), trail_score_for_trailhead: &mut u64) {
     let mut stack = Vec::new();
+    let mut peak_9_visited: HashSet<(usize,usize)>  = HashSet::new();
     stack.push(trailhead);
     while let Some((x, y)) = stack.pop() {
         let current_value = matrix.data[y][x];
@@ -74,8 +76,11 @@ fn recursively_visit_all_paths_from_trailhead(matrix: &Matrix, trailhead: (usize
                 let new_value = matrix.data[new_y as usize][new_x as usize];
                 if new_value == current_value + 1 {
                     if new_value == 9 {
-                        // We found the end of the trail.
-                        *trail_score_for_trailhead += 1;
+                        // We found the end of the trail for this trailhead which we have not visited before.
+                        if ! peak_9_visited.contains(&(new_x as usize, new_y as usize)) {
+                            *trail_score_for_trailhead += 1;
+                            peak_9_visited.insert((new_x as usize, new_y as usize));
+                        }
                     } else {
                         // We found a possible trail to continue to investigate.
                         stack.push((new_x as usize, new_y as usize));
@@ -98,11 +103,11 @@ fn main() {
 
             let mut total_trail_score: u64 = 0;
             for trail_head in &trail_heads {
-                println!("Trailhead at position: {:?}", trail_head);
                 let mut trail_score_for_trailhead = 0;
 
                 // Examine possible trails from each trailhead.
                 recursively_visit_all_paths_from_trailhead(&matrix, *trail_head, &mut trail_score_for_trailhead );
+                println!("Trailhead at position: {:?} trail_score_for_trailhead {}", trail_head, trail_score_for_trailhead);
 
                 total_trail_score += trail_score_for_trailhead;
             }
