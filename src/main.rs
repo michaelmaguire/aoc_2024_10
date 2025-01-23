@@ -1,14 +1,13 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-use std::collections::HashMap;
 
 struct Matrix {
-    data: Vec<Vec<char>>,
+    data: Vec<Vec<i32>>,
 }
 
 impl Matrix {
-    fn new(data: Vec<Vec<char>>) -> Self {
+    fn new(data: Vec<Vec<i32>>) -> Self {
         Matrix { data }
     }
 
@@ -20,7 +19,11 @@ impl Matrix {
         let mut result = Vec::new();
         for line in reader.lines() {
             let line = line?;
-            result.push(line.chars().collect());
+            let row: Vec<i32> = line.chars()
+                        .filter_map(|c| c.to_digit(10))
+                        .map(|d| d as i32)
+                        .collect();
+            result.push(row);
         }
         Ok(Matrix::new(result))
     }
@@ -36,19 +39,19 @@ impl Matrix {
     }
     fn print(&self) {
         for row in &self.data {
-            for &ch in row {
-                print!("{}", ch);
+            for &digit in row {
+                print!("{}", digit);
             }
             println!();
         }
     }
 
-    fn char_positions(&self) -> HashMap<char, Vec<(usize, usize)>> {
-        let mut positions = HashMap::new();
+    fn trailhead_positions(&self) -> Vec<(usize, usize)> {
+        let mut positions = Vec::new();
         for (y, row) in self.data.iter().enumerate() {
-            for (x, &ch) in row.iter().enumerate() {
-                if ch != '.' {
-                    positions.entry(ch).or_insert_with(Vec::new).push((x, y));
+            for (x, &digit) in row.iter().enumerate() {
+                if digit == 0 {
+                    positions.push((x, y));
                 }
             }
         }
@@ -57,37 +60,29 @@ impl Matrix {
 
 }
 
-impl Matrix {
-    fn coordinate_difference(&self, coord1: (usize, usize), coord2: (usize, usize)) -> (isize, isize) {
-        let x_diff = coord1.0 as isize - coord2.0 as isize;
-        let y_diff = coord1.1 as isize - coord2.1 as isize;
-        (x_diff, y_diff)
-    }
-    fn add_difference(&self, coord: (usize, usize), diff: (isize, isize)) -> Option<(usize, usize)> {
-        let new_x = coord.0 as isize + diff.0;
-        let new_y = coord.1 as isize + diff.1;
 
-        if new_x >= 0 && new_y >= 0 {
-            let new_x = new_x as usize;
-            let new_y = new_y as usize;
-            if self.check_bounds(new_x, new_y) {
-                return Some((new_x, new_y));
+fn recursively_visit_all_paths_from_trailhead(matrix: &Matrix, trailhead: (usize, usize), trail_score_for_trailhead: &mut u64) {
+    let mut stack = Vec::new();
+    stack.push(trailhead);
+    while let Some((x, y)) = stack.pop() {
+        let current_value = matrix.data[y][x];
+        // Visit all neighbors.
+        for (dx, dy) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+            let new_x = x as i32 + dx;
+            let new_y = y as i32 + dy;
+            if matrix.check_bounds(new_x as usize, new_y as usize) {
+                let new_value = matrix.data[new_y as usize][new_x as usize];
+                if new_value == current_value + 1 {
+                    if new_value == 9 {
+                        // We found the end of the trail.
+                        *trail_score_for_trailhead += 1;
+                    } else {
+                        // We found a possible trail to continue to investigate.
+                        stack.push((new_x as usize, new_y as usize));
+                    }
+                }
             }
         }
-        None
-    }
-    fn subtract_difference(&self, coord: (usize, usize), diff: (isize, isize)) -> Option<(usize, usize)> {
-        let new_x = coord.0 as isize - diff.0;
-        let new_y = coord.1 as isize - diff.1;
-    
-        if new_x >= 0 && new_y >= 0 {
-            let new_x = new_x as usize;
-            let new_y = new_y as usize;
-            if self.check_bounds(new_x, new_y) {
-                return Some((new_x, new_y));
-            }
-        }
-        None
     }
 }
 
@@ -96,56 +91,23 @@ fn main() {
     match Matrix::from_file("./src/input.txt") {
         Ok(mut matrix) => {
             matrix.print();
-            let positions = matrix.char_positions();
+            let trail_heads = matrix.trailhead_positions();
             //for (ch, pos) in &positions {
             //    println!("{}: {:?}", ch, pos);
             //}
 
+            let mut total_trail_score: u64 = 0;
+            for trail_head in &trail_heads {
+                println!("Trailhead at position: {:?}", trail_head);
+                let mut trail_score_for_trailhead = 0;
 
-            let mut antinode_positions = std::collections::HashSet::new();
+                // Examine possible trails from each trailhead.
+                recursively_visit_all_paths_from_trailhead(&matrix, *trail_head, &mut trail_score_for_trailhead );
 
-            for (_ch, positions) in &positions {
-                for i in 0..positions.len() {
-                    for j in i + 1..positions.len() {
-                        let pos1 = positions[i];
-                        antinode_positions.insert(pos1);
-
-                        let pos2 = positions[j];
-                        antinode_positions.insert(pos2);
-
-                        //println!("Pair for {}: ({:?}, {:?})", ch, pos1, pos2);
-
-                        let diff = matrix.coordinate_difference(pos1, pos2);
-                        //println!("Difference: {:?}", diff);
-
-                        let mut current_pos = pos1;
-                        while let Some(add_result) = matrix.add_difference(current_pos, diff) {
-                            //println!("Add result: {:?}", add_result);
-                            antinode_positions.insert(add_result);
-                            current_pos = add_result;
-                        }
-
-                        current_pos = pos2;
-                        while let Some(sub_result) = matrix.subtract_difference(current_pos, diff) {
-                            //println!("Sub result: {:?}", sub_result);
-                            antinode_positions.insert(sub_result);
-                            current_pos = sub_result;
-                        }
-                    }
-                }
+                total_trail_score += trail_score_for_trailhead;
             }
 
-            println!("Antinode positions: {:?}", antinode_positions);
-            println!("Number of antinode positions: {}", antinode_positions.len());
-
-            for &(x, y) in &antinode_positions {
-                if matrix.check_bounds(x, y) {
-                    matrix.data[y][x] = '#';
-                }
-            }
-
-            println!("Updated matrix:");
-            matrix.print();
+            println!("total_trail_score positions: {}", total_trail_score);
 
         },
         Err(e) => eprintln!("Error reading input file: {}", e),
